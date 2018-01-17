@@ -1,12 +1,11 @@
 # Service Instance Reaper
 
-This repository provides a utility for reaping old Cloud Foundry service instances.
+This repository provides a utility for reaping, that is deleting, old Cloud Foundry service instances.
 
 ## Building
 
 To build the utility, install go and govendor (see the [Go Development](docs/go.adoc) guide for instructions) and issue:
 ```bash
-$ rm $GOPATH/bin/service-instance-reaper
 $ cd $GOPATH/src/github.com/pivotal-cf/service-instance-reaper
 $ govendor install +local
 ```
