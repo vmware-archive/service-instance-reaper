@@ -129,6 +129,18 @@
 			"revisionTime": "2017-11-05T03:16:54Z"
 		},
 		{
+			"checksumSHA1": "G96uiQEasfIXg+dDnJ5S0shKwiM=",
+			"path": "github.com/onsi/gomega/gbytes",
+			"revision": "003f63b7f4cff3fc95357005358af2de0f5fe152",
+			"revisionTime": "2018-01-05T22:13:10Z"
+		},
+		{
+			"checksumSHA1": "LdfNGJj8agGKYC+WjSvhDTn7IUM=",
+			"path": "github.com/onsi/gomega/gexec",
+			"revision": "4fc17627b66f18840f3604eec277fe1af7f6d4a5",
+			"revisionTime": "2018-01-30T22:30:36Z"
+		},
+		{
 			"checksumSHA1": "H4RBR9kcEWh2lECAzBaOTSvgUuA=",
 			"path": "github.com/onsi/gomega/internal/assertion",
 			"revision": "1eecca0ba8e6f5ea5a431ce21d3aee2af0b4c90b",

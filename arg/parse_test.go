@@ -17,13 +17,19 @@
 package arg_test
 
 import (
-	"github.com/pivotal-cf/service-instance-reaper/arg"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/gbytes"
+	"github.com/pivotal-cf/service-instance-reaper/arg"
 	"time"
 )
 
 var _ = Describe("Parse", func() {
+
+	const (
+		testServiceName = "p-config-server"
+		testUrl         = "some.url"
+	)
 
 	var (
 		args              []string
@@ -31,94 +37,119 @@ var _ = Describe("Parse", func() {
 		password          string
 		skipSslValidation bool
 		reap              bool
+		recursive         bool
 		apiUrl            string
 		serviceName       string
 		expiryInterval    time.Duration
-		failed bool
+		shouldExit        bool
 		exitCode          int
+		output            *gbytes.Buffer
 	)
 
 	JustBeforeEach(func() {
-		failed = false
-		username, password, skipSslValidation, reap, apiUrl, serviceName, expiryInterval = arg.Parse(args, func(code int) { failed = true; exitCode = code })
+		shouldExit = false
+		output = gbytes.NewBuffer()
+		username, password, skipSslValidation, reap, recursive, apiUrl, serviceName, expiryInterval = arg.Parse(args, output, func(code int) { shouldExit = true; exitCode = code })
 	})
 
 	Context("with a full set of arguments", func() {
 		BeforeEach(func() {
-			args = []string{"command", "-u=user", "-p=password", "-skip-ssl-validation", "-reap", "some.url", "service-instance", "168"}
+			args = []string{"command", "-u=user", "-p=password", "-skip-ssl-validation", "-reap", "-recursive", testUrl, testServiceName, "168"}
 		})
 
-		It("should not fail", func() {
-		    Expect(failed).To(BeFalse())
+		It("does not fail", func() {
+			Expect(shouldExit).To(BeFalse())
 		})
 
-		It("should parse the arguments correctly", func() {
-		    Expect(username).To(Equal("user"))
-		    Expect(password).To(Equal("password"))
-		    Expect(skipSslValidation).To(BeTrue())
-		    Expect(reap).To(BeTrue())
-		    Expect(apiUrl).To(Equal("https://some.url"))
-		    Expect(serviceName).To(Equal("service-instance"))
-		    Expect(expiryInterval).To(Equal(time.Duration(168)*time.Hour))
+		It("parses the arguments correctly", func() {
+			Expect(username).To(Equal("user"))
+			Expect(password).To(Equal("password"))
+			Expect(skipSslValidation).To(BeTrue())
+			Expect(reap).To(BeTrue())
+			Expect(recursive).To(BeTrue())
+			Expect(apiUrl).To(Equal("https://some.url"))
+			Expect(serviceName).To(Equal(testServiceName))
+			Expect(expiryInterval).To(Equal(time.Duration(168) * time.Hour))
 		})
 	})
 
 	Context("with a minimal set of arguments", func() {
 		BeforeEach(func() {
-			args = []string{"command", "-u=user", "-p=password", "some.url", "service-instance", "168"}
+			args = []string{"command", "-u=user", "-p=password", testUrl, testServiceName, "168"}
 		})
 
-		It("should not fail", func() {
-		    Expect(failed).To(BeFalse())
+		It("does not fail", func() {
+			Expect(shouldExit).To(BeFalse())
 		})
 
-		It("should apply the correct defaults", func() {
-		    Expect(skipSslValidation).To(BeFalse())
-		    Expect(reap).To(BeFalse())
+		It("applies the correct defaults", func() {
+			Expect(skipSslValidation).To(BeFalse())
+			Expect(reap).To(BeFalse())
+			Expect(recursive).To(BeFalse())
 		})
 
-
-		It("should still parse the specified arguments correctly", func() {
+		It("parses the specified arguments correctly", func() {
 			Expect(username).To(Equal("user"))
 			Expect(password).To(Equal("password"))
 			Expect(apiUrl).To(Equal("https://some.url"))
-			Expect(serviceName).To(Equal("service-instance"))
-			Expect(expiryInterval).To(Equal(time.Duration(168)*time.Hour))
+			Expect(serviceName).To(Equal(testServiceName))
+			Expect(expiryInterval).To(Equal(time.Duration(168) * time.Hour))
 		})
 	})
 
 	Context("with an invalid number of arguments", func() {
 		BeforeEach(func() {
 			// Pass an additional argument so that parsing will not fail after the failure closure returns
-			args = []string{"command", "-u=user", "-p=password", "some.url", "service-instance", "168", "banana"}
+			args = []string{"command", "-u=user", "-p=password", testUrl, testServiceName, "168", "banana"}
 		})
 
-		It("should fail with exit status code 0", func() {
-			Expect(failed).To(BeTrue())
+		It("fails with exit status code 0", func() {
+			Expect(shouldExit).To(BeTrue())
 			Expect(exitCode).To(Equal(0))
+		})
+
+		It("prints usage information", func() {
+			Expect(output).To(gbytes.Say("Usage"))
 		})
 	})
 
 	Context("when help is requested", func() {
 		BeforeEach(func() {
-			// Pass other arguments in addition to "help" so that parsing will not fail after the failure closure returns
-			args = []string{"command", "-u=user", "-p=password", "help", "service-instance", "168"}
+			args = []string{"command", "-u=user", "-p=password", "help"}
 		})
 
-		It("should fail with exit status code 0", func() {
-			Expect(failed).To(BeTrue())
+		It("fails with exit status code 0", func() {
+			Expect(shouldExit).To(BeTrue())
 			Expect(exitCode).To(Equal(0))
+		})
+
+		It("prints usage information", func() {
+			Expect(output).To(gbytes.Say("Usage"))
+		})
+	})
+
+	Context("when an invalid api url is specified", func() {
+		BeforeEach(func() {
+			args = []string{"command", "-u=user", "-p=password", ":///:/", testServiceName, "168"}
+		})
+
+		It("fails with exit status code 1", func() {
+			Expect(shouldExit).To(BeTrue())
+			Expect(exitCode).To(Equal(1))
+		})
+
+		It("prints usage information", func() {
+			Expect(output).To(gbytes.Say("Usage"))
 		})
 	})
 
 	Context("when an invalid expiry interval is specified", func() {
 		BeforeEach(func() {
-			// Pass other arguments in addition to "help" so that parsing will not fail after the failure closure returns
-			args = []string{"command", "-u=user", "-p=password", "some.url", "service-instance", "-1"}
+			args = []string{"command", "-u=user", "-p=password", testUrl, testServiceName, "-1"}
 		})
 
-		It("should fail with exit status code 0", func() {
-			Expect(failed).To(BeTrue())
+		It("fails with exit status code 0", func() {
+			Expect(shouldExit).To(BeTrue())
 			Expect(exitCode).To(Equal(1))
 		})
 	})

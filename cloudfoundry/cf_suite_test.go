@@ -1,4 +1,4 @@
-package httpclient_test
+package cloudfoundry_test
 
 import (
 	. "github.com/onsi/ginkgo"
@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestHttpClient(t *testing.T) {
+func TestCf(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Http Client Suite")
+	RunSpecs(t, "CF Suite")
 }

@@ -17,44 +17,48 @@
 package main
 
 import (
-	"fmt"
-	"os"
-	"net/http"
 	"crypto/tls"
-	"github.com/pivotal-cf/service-instance-reaper/login"
-	"github.com/pivotal-cf/service-instance-reaper/httpclient"
-	"github.com/pivotal-cf/service-instance-reaper/reaper"
-	"github.com/pivotal-cf/service-instance-reaper/arg"
+	"fmt"
 	"github.com/hako/durafmt"
+	"github.com/pivotal-cf/service-instance-reaper/arg"
+	"github.com/pivotal-cf/service-instance-reaper/cloudfoundry"
+	"github.com/pivotal-cf/service-instance-reaper/httpclient"
+	reaperpkg "github.com/pivotal-cf/service-instance-reaper/reaper"
+	"net/http"
+	"os"
+	"time"
 )
 
 func main() {
-	username, password, skipSslValidation, reap, apiUrl, serviceName, expiryInterval := arg.Parse(os.Args, func(code int){os.Exit(code)})
+	username, password, skipSslValidation, reap, recursive, apiUrl, serviceName, expiryInterval := arg.Parse(os.Args, os.Stdout, os.Exit)
 
 	if !reap {
 		fmt.Printf("DRY RUN ONLY!\n")
 	}
+
 	fmt.Printf("Reaping instances of service %s older than %s in %s as %s...\n", serviceName, durafmt.Parse(expiryInterval), apiUrl, username)
 
-	tr := &http.Transport{
+	transport := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: skipSslValidation},
 	}
-	client := &http.Client{Transport: tr}
+	client := &http.Client{Transport: transport}
 
-	accessToken, err := login.GetOauthToken(client, apiUrl, username, password)
+	accessToken, err := cloudfoundry.GetOauthToken(client, apiUrl, username, password)
 	if err != nil {
 		fatalError("Authentication failed", err)
 	}
 
 	authClient := httpclient.NewAuthenticatedClient(client)
-	reaper.Reap(authClient, apiUrl, serviceName, accessToken, expiryInterval, reap, fatal)
+	cf := cloudfoundry.NewClient(authClient, apiUrl, accessToken)
+	reaper := reaperpkg.NewReaper(cf, time.Now, os.Stdout)
+
+	err = reaper.Reap(serviceName, expiryInterval, reap, recursive)
+	if err != nil {
+		fatalError("Failed", err)
+	}
 }
 
 func fatalError(message string, err error) {
-	fatal(fmt.Sprintf("%s: %s", message, err))
-}
-
-func fatal(message string) {
-	fmt.Println(message)
+	fmt.Printf("%s: %s", message, err)
 	os.Exit(1)
 }

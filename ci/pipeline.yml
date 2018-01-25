@@ -1,0 +1,39 @@
+slack-failure-notification: &slack-failure-notification
+  put: alert
+  params:
+    icon_emoji: ":grim_reaper:"
+    username: concourse
+    channel: "#spring-cloud-services"
+    text: "<!here> Build <https://$ATC_EXTERNAL_URL/builds/$BUILD_ID|$BUILD_NAME> of job $BUILD_JOB_NAME in the $BUILD_PIPELINE_NAME pipeline has failed!"
+
+jobs:
+- name: service-instance-reaper
+  plan:
+  - get: service-instance-reaper
+    trigger: true
+  - aggregate:
+    - task: build
+      file: service-instance-reaper/ci/tasks/build.yml
+    - task: test
+      file: service-instance-reaper/ci/tasks/test.yml
+  on_failure: *slack-failure-notification
+
+resource_types:
+- name: slack-notification
+  type: docker-image
+  source:
+    repository: cfcommunity/slack-notification-resource
+    tag: latest
+
+resources:
+- name: service-instance-reaper
+  type: git
+  source:
+    uri: {{scs-github-url-service-instance-reaper}}
+    branch: master
+
+- name: alert
+  type: slack-notification
+  source:
+    # Default channel is #scs-firehose
+    url: {{scs-slack-webhook}}
