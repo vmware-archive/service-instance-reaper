@@ -11,3 +11,6 @@
 
 # Output of the go coverage tool
 *.coverprofile
+
+# Main binary, build with `go build`
+service-instance-reaper

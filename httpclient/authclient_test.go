@@ -17,6 +17,8 @@
 package httpclient_test
 
 import (
+	"github.com/pivotal-cf/service-instance-reaper/httpclient"
+	"github.com/pivotal-cf/service-instance-reaper/httpclient/httpclientfakes"
 	"io/ioutil"
 	"net/http"
 	"strings"
@@ -29,11 +31,9 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/pivotal-cf/spring-cloud-services-cli-plugin/httpclient"
-	"github.com/pivotal-cf/spring-cloud-services-cli-plugin/httpclient/httpclientfakes"
 )
 
-var _ = Describe("Authclient", func() {
+var _ = Describe("AuthClient", func() {
 	const (
 		testUrl               = "https://eureka.pivotal.io/auth/request"
 		testAccessToken       = "access-token"
@@ -42,7 +42,7 @@ var _ = Describe("Authclient", func() {
 	)
 
 	var (
-		fakeClient *httpclientfakes.FakeClient
+		fakeClient *httpclientfakes.FakeHttpClient
 		URL        string
 		testErr    error
 		err        error
@@ -50,7 +50,7 @@ var _ = Describe("Authclient", func() {
 	)
 
 	BeforeEach(func() {
-		fakeClient = &httpclientfakes.FakeClient{}
+		fakeClient = &httpclientfakes.FakeHttpClient{}
 		testErr = errors.New(errMessage)
 	})
 
@@ -76,25 +76,25 @@ var _ = Describe("Authclient", func() {
 				URL = ":"
 			})
 
-			It("should return a suitable error if the request cannot be created", func() {
+			It("returns a suitable error if the request cannot be created", func() {
 				Expect(body).To(BeNil())
 				Expect(err).To(MatchError("Request creation error: parse :: missing protocol scheme"))
 			})
 		})
 
-		It("should send a request with the correct accept header", func() {
+		It("sends a request with the correct accept header", func() {
 			Expect(fakeClient.DoCallCount()).To(Equal(1))
 			req := fakeClient.DoArgsForCall(0)
 			Expect(req.Header.Get("Accept")).To(Equal("application/json"))
 		})
 
-		It("should send a request with the correct authorization header", func() {
+		It("sends a request with the correct authorization header", func() {
 			Expect(fakeClient.DoCallCount()).To(Equal(1))
 			req := fakeClient.DoArgsForCall(0)
 			Expect(req.Header.Get("Authorization")).To(Equal(testBearerAccessToken))
 		})
 
-		It("should pass the response back", func() {
+		It("passes the response back", func() {
 			Expect(err).NotTo(HaveOccurred())
 			op, readErr := ioutil.ReadAll(body)
 			Expect(readErr).NotTo(HaveOccurred())
@@ -106,7 +106,7 @@ var _ = Describe("Authclient", func() {
 				fakeClient.DoReturns(nil, testErr)
 			})
 
-			It("should produce an error", func() {
+			It("produces an error", func() {
 				Expect(body).To(BeNil())
 				Expect(err).To(MatchError(fmt.Sprintf("Authenticated get of 'https://eureka.pivotal.io/auth/request' failed: %s", errMessage)))
 			})
@@ -118,7 +118,7 @@ var _ = Describe("Authclient", func() {
 				fakeClient.DoReturns(resp, nil)
 			})
 
-			It("should return the error", func() {
+			It("returns the error", func() {
 				Expect(body).To(BeNil())
 				Expect(err).To(MatchError("Authenticated get of 'https://eureka.pivotal.io/auth/request' failed: 404 Not found"))
 			})
@@ -142,26 +142,50 @@ var _ = Describe("Authclient", func() {
 				URL = ":"
 			})
 
-			It("should return a suitable error", func() {
+			It("returns a suitable error", func() {
 				Expect(err).To(MatchError("Request creation error: parse :: missing protocol scheme"))
 			})
 		})
 
-		It("should send a request with the correct accept header", func() {
+		It("sends a request with the correct accept header", func() {
 			Expect(fakeClient.DoCallCount()).To(Equal(1))
 			req := fakeClient.DoArgsForCall(0)
 			Expect(req.Header.Get("Accept")).To(Equal("application/json"))
 		})
 
-		It("should send a request with the correct authorization header", func() {
+		It("sends a request with the correct authorization header", func() {
 			Expect(fakeClient.DoCallCount()).To(Equal(1))
 			req := fakeClient.DoArgsForCall(0)
 			Expect(req.Header.Get("Authorization")).To(Equal(testBearerAccessToken))
 		})
 
-		It("should pass the status code back", func() {
+		It("passes the status code back", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(status).To(Equal(http.StatusOK))
+		})
+
+		Context("when the request returns an accepted status", func() {
+			BeforeEach(func() {
+				resp := &http.Response{StatusCode: http.StatusAccepted, Status: "202 Accepted"}
+				fakeClient.DoReturns(resp, nil)
+			})
+
+			It("passes the status code back", func() {
+				Expect(err).NotTo(HaveOccurred())
+				Expect(status).To(Equal(http.StatusAccepted))
+			})
+		})
+
+		Context("when the request returns a no content status", func() {
+			BeforeEach(func() {
+				resp := &http.Response{StatusCode: http.StatusNoContent, Status: "204 No Content"}
+				fakeClient.DoReturns(resp, nil)
+			})
+
+			It("passes the status code back", func() {
+				Expect(err).NotTo(HaveOccurred())
+				Expect(status).To(Equal(http.StatusNoContent))
+			})
 		})
 
 		Context("when the request fails", func() {
@@ -169,7 +193,7 @@ var _ = Describe("Authclient", func() {
 				fakeClient.DoReturns(nil, testErr)
 			})
 
-			It("should produce an error", func() {
+			It("produces an error", func() {
 				Expect(err).To(MatchError(fmt.Sprintf("Authenticated delete of 'https://eureka.pivotal.io/auth/request' failed: %s", errMessage)))
 			})
 		})
@@ -180,7 +204,7 @@ var _ = Describe("Authclient", func() {
 				fakeClient.DoReturns(resp, nil)
 			})
 
-			It("should return the error", func() {
+			It("returns the error", func() {
 				Expect(err).To(MatchError("Authenticated delete of 'https://eureka.pivotal.io/auth/request' failed: 404 Not found"))
 			})
 		})
@@ -216,12 +240,12 @@ var _ = Describe("Authclient", func() {
 				URL = ":"
 			})
 
-			It("should return a suitable error", func() {
+			It("returns a suitable error", func() {
 				Expect(err).To(MatchError("Request creation error: parse :: missing protocol scheme"))
 			})
 		})
 
-		It("should send a request with the correct body", func() {
+		It("sends a request with the correct body", func() {
 			Expect(fakeClient.DoCallCount()).To(Equal(1))
 			req := fakeClient.DoArgsForCall(0)
 			bodyContents, readErr := ioutil.ReadAll(req.Body)
@@ -229,19 +253,19 @@ var _ = Describe("Authclient", func() {
 			Expect(string(bodyContents)).To(Equal(testBody))
 		})
 
-		It("should send a request with the correct authorization header", func() {
+		It("sends a request with the correct authorization header", func() {
 			Expect(fakeClient.DoCallCount()).To(Equal(1))
 			req := fakeClient.DoArgsForCall(0)
 			Expect(req.Header.Get("Authorization")).To(Equal(testBearerAccessToken))
 		})
 
-		It("should send a request with the correct content type header", func() {
+		It("sends a request with the correct content type header", func() {
 			Expect(fakeClient.DoCallCount()).To(Equal(1))
 			req := fakeClient.DoArgsForCall(0)
 			Expect(req.Header.Get("Content-Type")).To(Equal(bodyType))
 		})
 
-		It("should pass the status code back", func() {
+		It("passes the status code back", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(status).To(Equal(http.StatusOK))
 		})
@@ -251,7 +275,7 @@ var _ = Describe("Authclient", func() {
 				fakeClient.DoReturns(nil, testErr)
 			})
 
-			It("should produce an error", func() {
+			It("produces an error", func() {
 				Expect(err).To(MatchError(fmt.Sprintf("Authenticated post to 'https://eureka.pivotal.io/auth/request' failed: %s", errMessage)))
 			})
 		})
@@ -262,7 +286,7 @@ var _ = Describe("Authclient", func() {
 				fakeClient.DoReturns(resp, nil)
 			})
 
-			It("should return the error", func() {
+			It("returns the error", func() {
 				Expect(err).To(MatchError("Authenticated post to 'https://eureka.pivotal.io/auth/request' failed: 404 Not found"))
 			})
 		})
@@ -285,18 +309,18 @@ var _ = Describe("Authclient", func() {
 				URL = ":"
 			})
 
-			It("should return a suitable error", func() {
+			It("returns a suitable error", func() {
 				Expect(err).To(MatchError("Request creation error: parse :: missing protocol scheme"))
 			})
 		})
 
-		It("should send a request with the correct authorization header", func() {
+		It("sends a request with the correct authorization header", func() {
 			Expect(fakeClient.DoCallCount()).To(Equal(1))
 			req := fakeClient.DoArgsForCall(0)
 			Expect(req.Header.Get("Authorization")).To(Equal(testBearerAccessToken))
 		})
 
-		It("should pass the status code back", func() {
+		It("passes the status code back", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(status).To(Equal(http.StatusOK))
 		})
@@ -306,7 +330,7 @@ var _ = Describe("Authclient", func() {
 				fakeClient.DoReturns(nil, testErr)
 			})
 
-			It("should produce an error", func() {
+			It("produces an error", func() {
 				Expect(err).To(MatchError(fmt.Sprintf("Authenticated put of 'https://eureka.pivotal.io/auth/request' failed: %s", errMessage)))
 			})
 		})
@@ -317,7 +341,7 @@ var _ = Describe("Authclient", func() {
 				fakeClient.DoReturns(resp, nil)
 			})
 
-			It("should return the error", func() {
+			It("returns the error", func() {
 				Expect(err).To(MatchError("Authenticated put of 'https://eureka.pivotal.io/auth/request' failed: 404 Not found"))
 			})
 		})

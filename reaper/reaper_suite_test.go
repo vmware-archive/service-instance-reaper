@@ -1,4 +1,4 @@
-package login_test
+package reaper_test
 
 import (
 	. "github.com/onsi/ginkgo"
@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestLogin(t *testing.T) {
+func TestReaper(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Login Suite")
+	RunSpecs(t, "Reaper Suite")
 }

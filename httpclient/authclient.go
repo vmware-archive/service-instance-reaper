@@ -23,7 +23,12 @@ import (
 	"strings"
 )
 
-//go:generate counterfeiter -o httpclientfakes/fake_authenticated_client.go . AuthenticatedClient
+//go:generate counterfeiter . HttpClient
+type HttpClient interface {
+	Do(req *http.Request) (*http.Response, error)
+}
+
+//go:generate counterfeiter . AuthenticatedClient
 type AuthenticatedClient interface {
 	DoAuthenticatedGet(url string, accessToken string) (io.ReadCloser, int, error)
 
@@ -35,11 +40,11 @@ type AuthenticatedClient interface {
 }
 
 type authenticatedClient struct {
-	Httpclient Client
+	httpClient HttpClient
 }
 
-func NewAuthenticatedClient(httpClient Client) *authenticatedClient {
-	return &authenticatedClient{Httpclient: httpClient}
+func NewAuthenticatedClient(httpClient HttpClient) *authenticatedClient {
+	return &authenticatedClient{httpClient: httpClient}
 }
 
 func (c *authenticatedClient) DoAuthenticatedGet(url string, accessToken string) (io.ReadCloser, int, error) {
@@ -51,7 +56,7 @@ func (c *authenticatedClient) DoAuthenticatedGet(url string, accessToken string)
 
 	req.Header.Add("Accept", "application/json")
 	addAuthorizationHeader(req, accessToken)
-	resp, err := c.Httpclient.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, 0, fmt.Errorf("Authenticated get of '%s' failed: %s", url, err)
 	}
@@ -70,14 +75,18 @@ func (c *authenticatedClient) DoAuthenticatedDelete(url string, accessToken stri
 
 	req.Header.Add("Accept", "application/json")
 	addAuthorizationHeader(req, accessToken)
-	resp, err := c.Httpclient.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return 0, fmt.Errorf("Authenticated delete of '%s' failed: %s", url, err)
 	}
-	if resp.StatusCode != http.StatusOK {
+
+	switch resp.StatusCode {
+	case http.StatusOK, http.StatusAccepted, http.StatusNoContent:
+		return resp.StatusCode, nil
+	default:
 		return resp.StatusCode, fmt.Errorf("Authenticated delete of '%s' failed: %s", url, resp.Status)
 	}
-	return resp.StatusCode, nil
+
 }
 
 func (c *authenticatedClient) DoAuthenticatedPost(url string, bodyType string, bodyStr string, accessToken string) (io.ReadCloser, int, error) {
@@ -88,7 +97,7 @@ func (c *authenticatedClient) DoAuthenticatedPost(url string, bodyType string, b
 	}
 	addAuthorizationHeader(req, accessToken)
 	req.Header.Set("Content-Type", bodyType)
-	resp, err := c.Httpclient.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, 0, fmt.Errorf("Authenticated post to '%s' failed: %s", url, err)
 	}
@@ -106,7 +115,7 @@ func (c *authenticatedClient) DoAuthenticatedPut(url string, accessToken string)
 	}
 
 	addAuthorizationHeader(req, accessToken)
-	resp, err := c.Httpclient.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return 0, fmt.Errorf("Authenticated put of '%s' failed: %s", url, err)
 	}

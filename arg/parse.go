@@ -17,50 +17,61 @@
 package arg
 
 import (
-	"time"
-	"strconv"
-	"fmt"
 	"flag"
-	"os"
+	"fmt"
+	"io"
+	"net/url"
+	"strconv"
+	"time"
 )
 
-func Parse(args []string, fail func(int)) (username string, password string, skipSslValidation bool, reap bool, apiUrl string, serviceName string, expiryInterval time.Duration) {
+func Parse(args []string, output io.Writer, exit func(int)) (username string, password string, skipSslValidation bool, reap, recursive bool, apiUrl string, serviceName string, expiryInterval time.Duration) {
 	commandLine := flag.NewFlagSet(args[0], flag.ExitOnError)
-	commandLine.SetOutput(os.Stdout)
+	commandLine.SetOutput(output)
 	commandLine.StringVar(&username, "u", "", "username")
 	commandLine.StringVar(&password, "p", "", "password")
 	commandLine.BoolVar(&skipSslValidation, "skip-ssl-validation", false, "Skip verification of the API endpoint. Not recommended!")
 	commandLine.BoolVar(&reap, "reap", false, "Reap service instances. Otherwise perform a dry run only.")
+	commandLine.BoolVar(&recursive, "recursive", false, "Also deletes any service bindings, service keys, and routes associated with reaped service instances.")
 	commandLine.Parse(args[1:])
 
 	positionalArgs := commandLine.Args()
 	if len(positionalArgs) != 3 || positionalArgs[0] == "help" {
-		printUsage(commandLine)
-		fail(0)
+		printUsage(output, commandLine)
+		exit(0)
+		return
 	}
 
-	apiUrl = "https://" + positionalArgs[0]
+	urlArg, err := url.Parse(positionalArgs[0])
+	if err != nil {
+		fmt.Fprintf(output, "Invalid api url: %s\n", positionalArgs[0])
+		printUsage(output, commandLine)
+		exit(1)
+		return
+	}
+	urlArg.Scheme = "https"
+	apiUrl = urlArg.String()
 
 	serviceName = positionalArgs[1]
 
 	expiryIntervalHours, err := strconv.ParseFloat(positionalArgs[2], 32)
 	if err != nil || expiryIntervalHours < 0 {
-		fmt.Printf("Invalid expiry interval: %s\n", positionalArgs[2])
-		printUsage(commandLine)
-		fail(1)
+		fmt.Fprintf(output, "Invalid expiry interval: %s\n", positionalArgs[2])
+		printUsage(output, commandLine)
+		exit(1)
+		return
 	}
 	expiryInterval = time.Duration(expiryIntervalHours*60*60) * time.Second
 
 	return
 }
 
-func printUsage(flags *flag.FlagSet) {
-	fmt.Printf(`Delete instances of the given service older than the given age
+func printUsage(output io.Writer, flags *flag.FlagSet) {
+	fmt.Fprintln(output, `Delete instances of the given service older than the given age
 		
 Usage:
-  service-instance-reaper [-reap] -u username -p password [-skip-ssl-validation] API_URL SERVICE_NAME AGE_HOURS
-		
-Flags (which must be specified BEFORE non-flag arguments):
-`)
+  service-instance-reaper [-reap] [-recursive] -u username -p password [-skip-ssl-validation] API_URL SERVICE_NAME AGE_HOURS
+
+Flags (which must be specified BEFORE non-flag arguments):`)
 	flags.PrintDefaults()
 }

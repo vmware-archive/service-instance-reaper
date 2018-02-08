@@ -17,141 +17,156 @@
 package reaper
 
 import (
+	"errors"
 	"fmt"
-	"io/ioutil"
+	"github.com/pivotal-cf/service-instance-reaper/cloudfoundry"
+	"io"
 	"time"
-	"github.com/pivotal-cf/service-instance-reaper/httpclient"
-	"net/http"
-	"encoding/json"
 )
 
-// FIXME: support multi-page responses
-const MAXIMUM_RESULTS_PER_PAGE = 100
+type Reaper struct {
+	cf             cloudfoundry.Client
+	expiryInterval time.Duration
+	reap           bool
+	recursive      bool
+	currentTime    func() time.Time
+	output         io.Writer
+	errorChannel   chan error
+}
 
-func Reap(authClient httpclient.AuthenticatedClient, apiUrl string, serviceName string, accessToken string, expiryInterval time.Duration, reap bool, fatal func(string)) {
-	bodyReader, statusCode, err := authClient.DoAuthenticatedGet(apiUrl+fmt.Sprintf("/v2/services?q=label:%s", serviceName), accessToken)
-	if err != nil {
-		fatalError("GET /v2/services failed", err, fatal)
+func NewReaper(cf cloudfoundry.Client, currentTime func() time.Time, output io.Writer) Reaper {
+	return Reaper{
+		cf:          cf,
+		currentTime: currentTime,
+		output:      output,
 	}
-	if statusCode != http.StatusOK {
-		fatal(fmt.Sprintf("GET /v2/services failed: %d", statusCode))
-	}
+}
 
-	if bodyReader == nil {
-		fatal("GET /v2/services response body missing")
-	}
-	body, err := ioutil.ReadAll(bodyReader)
-	if err != nil {
-		fatalError("Cannot read GET /v2/services response body: %s", err, fatal)
-	}
+func (r Reaper) Reap(serviceName string, expiryInterval time.Duration, reap, recursive bool) error {
+	r.expiryInterval = expiryInterval
+	r.reap = reap
+	r.recursive = recursive
+	r.errorChannel = make(chan error, 100)
 
-	var listServicesResp ListServicesResp
-	err = json.Unmarshal(body, &listServicesResp)
-	if err != nil {
-		fatalError("Invalid GET /v2/services response JSON", err, fatal)
-	}
+	r.delete(r.expiredInstancesOf(r.freeServicePlansOf(r.servicesWithName(serviceName))))
 
-	serviceGuid := listServicesResp.Resources[0].Metadata.Guid
-
-	bodyReader, statusCode, err = authClient.DoAuthenticatedGet(apiUrl+fmt.Sprintf("/v2/services/%s/service_plans?results-per-page=%d", serviceGuid, MAXIMUM_RESULTS_PER_PAGE), accessToken)
-	if err != nil {
-		fatalError("GET /v2/services/[service GUID]/service_plans failed", err, fatal)
-	}
-	if statusCode != http.StatusOK {
-		fatal(fmt.Sprintf("GET /v2/services/[service GUID]/service_plans failed: %d", statusCode))
+	errorsFound := false
+	for err := range r.errorChannel {
+		errorsFound = true
+		fmt.Fprintln(r.output, err)
 	}
 
-	if bodyReader == nil {
-		fatal("GET /v2/services/[service GUID]/service_plans response body missing")
-	}
-	body, err = ioutil.ReadAll(bodyReader)
-	if err != nil {
-		fatalError("Cannot read GET /v2/services/[service GUID]/service_plans response body: %s", err, fatal)
+	if errorsFound {
+		return errors.New("errors occurred whilst reaping")
 	}
 
-	var listServicePlansResp ListServicePlansResp
-	err = json.Unmarshal(body, &listServicePlansResp)
-	if err != nil {
-		fatalError("Invalid GET /v2/services/[service GUID]/service_plans response JSON", err, fatal)
-	}
+	return nil
+}
 
-	for _, sp := range listServicePlansResp.Resources {
-		if sp.Entity.Free {
-			bodyReader, statusCode, err = authClient.DoAuthenticatedGet(apiUrl+fmt.Sprintf("/v2/service_plans/%s/service_instances?results-per-page=%d", sp.Metadata.Guid, MAXIMUM_RESULTS_PER_PAGE), accessToken)
+func (r *Reaper) servicesWithName(serviceName string) <-chan cloudfoundry.Service {
+	output := make(chan cloudfoundry.Service, 1)
+
+	go func() {
+		defer close(output)
+
+		services, err := r.cf.GetServices(serviceName)
+		if err != nil {
+			r.errorChannel <- err
+			return
+		}
+
+		if len(services) == 0 {
+			fmt.Fprintf(r.output, "No services of type '%s' found", serviceName)
+			return
+		}
+
+		output <- services[0]
+	}()
+
+	return output
+}
+
+func (r *Reaper) freeServicePlansOf(services <-chan cloudfoundry.Service) <-chan cloudfoundry.ServicePlan {
+	output := make(chan cloudfoundry.ServicePlan, cloudfoundry.MaximumResultsPerPage)
+
+	go func() {
+		defer close(output)
+
+		for service := range services {
+			servicePlans, err := r.cf.GetServicePlans(service.Metadata.Guid)
 			if err != nil {
-				fatalError("GET /v2/service_plans/[service plan GUID]/service_instances failed", err, fatal)
-			}
-			if statusCode != http.StatusOK {
-				fatal(fmt.Sprintf("GET /v2/service_plans/[service plan GUID]/service_instances: %d", statusCode))
+				r.errorChannel <- err
+				return
 			}
 
-			if bodyReader == nil {
-				fatal("GET /v2/service_plans/[service plan GUID]/service_instances response body missing")
+			for _, servicePlan := range servicePlans {
+				if servicePlan.Entity.Free {
+					output <- servicePlan
+				}
 			}
-			body, err = ioutil.ReadAll(bodyReader)
-			if err != nil {
-				fatalError("Cannot read GET /v2/service_plans/[service plan GUID]/service_instances response body: %s", err, fatal)
-			}
+		}
+	}()
 
-			var servicePlanListServiceInstancesResp ServicePlanListServiceInstancesResp
-			err = json.Unmarshal(body, &servicePlanListServiceInstancesResp)
-			if err != nil {
-				fatalError("Invalid GET /v2/service_plans/[service plan GUID]/service_instances response JSON", err, fatal)
-			}
+	return output
+}
 
-			for _, si := range servicePlanListServiceInstancesResp.Resources {
-				if expired(si.Metadata.CreatedAt, expiryInterval, fatal) {
-					if reap {
-						// TODO: delete the service instance and add force option to do recursive delete
-					} else {
-						fmt.Printf("%s %s", si.Entity.Name, si.Metadata.Guid)
-					}
+func (r *Reaper) expiredInstancesOf(servicePlans <-chan cloudfoundry.ServicePlan) <-chan cloudfoundry.ServiceInstance {
+	output := make(chan cloudfoundry.ServiceInstance, cloudfoundry.MaximumResultsPerPage)
+
+	go func() {
+		defer close(output)
+
+		for servicePlan := range servicePlans {
+			serviceInstances, serviceInstanceErrors := r.cf.GetServicePlanInstances(servicePlan.Metadata.Guid)
+
+			for serviceInstance := range serviceInstances {
+				serviceInstanceExpired, err := expired(serviceInstance.Metadata.CreatedAt, r.expiryInterval, r.currentTime)
+				if err != nil {
+					r.errorChannel <- err
+					return
+				}
+
+				if serviceInstanceExpired {
+					output <- serviceInstance
 				}
 			}
 
+			mergeErrors(serviceInstanceErrors, r.errorChannel)
 		}
+	}()
+
+	return output
+}
+
+func (r *Reaper) delete(serviceInstances <-chan cloudfoundry.ServiceInstance) {
+	go func() {
+		defer close(r.errorChannel)
+
+		for serviceInstance := range serviceInstances {
+			if r.reap {
+				err := r.cf.DeleteServiceInstance(serviceInstance.Metadata.Guid, r.recursive)
+				if err != nil {
+					r.errorChannel <- fmt.Errorf("unable to delete service instance: %s %s (%s)\n",
+						serviceInstance.Entity.Name, serviceInstance.Metadata.Guid, err)
+				}
+			}
+
+			fmt.Fprintf(r.output, "%s %s\n", serviceInstance.Entity.Name, serviceInstance.Metadata.Guid)
+		}
+	}()
+}
+
+func mergeErrors(from <-chan error, to chan<- error) {
+	for err := range from {
+		to <- err
 	}
 }
 
-func fatalError(message string, err error, fatal func(string)) {
-	fatal(fmt.Sprintf("%s: %s", message, err))
-}
-
-func expired(creationTimeString string, expiryInterval time.Duration, fatal func(string)) bool {
+func expired(creationTimeString string, expiryInterval time.Duration, currentTime func() time.Time) (bool, error) {
 	creationTime, err := time.Parse(time.RFC3339, creationTimeString)
 	if err != nil {
-		fatalError("Invalid service instance creation time", err, fatal)
+		return false, fmt.Errorf("invalid service instance creation time: %s", err)
 	}
 	expiryTime := creationTime.Add(expiryInterval)
-	return time.Now().After(expiryTime)
-}
-
-type Metadata struct {
-	Guid      string
-	CreatedAt string `json:"created_at"`
-}
-
-type ListServicesResp struct {
-	Resources []struct {
-		Metadata Metadata
-	}
-}
-
-type ListServicePlansResp struct {
-	Resources []struct {
-		Metadata Metadata
-		Entity struct {
-			Name string
-			Free bool
-		}
-	}
-}
-
-type ServicePlanListServiceInstancesResp struct {
-	Resources []struct {
-		Metadata Metadata
-		Entity struct {
-			Name string
-		}
-	}
+	return currentTime().After(expiryTime), nil
 }
