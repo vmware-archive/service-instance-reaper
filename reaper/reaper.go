@@ -27,6 +27,8 @@ import (
 type Reaper struct {
 	cf             cloudfoundry.Client
 	expiryInterval time.Duration
+	serviceName    string
+	planName       string
 	reap           bool
 	recursive      bool
 	currentTime    func() time.Time
@@ -42,13 +44,15 @@ func NewReaper(cf cloudfoundry.Client, currentTime func() time.Time, output io.W
 	}
 }
 
-func (r Reaper) Reap(serviceName string, expiryInterval time.Duration, reap, recursive bool) error {
+func (r Reaper) Reap(serviceName string, planName string, expiryInterval time.Duration, reap bool, recursive bool) error {
 	r.expiryInterval = expiryInterval
+	r.serviceName = serviceName
+	r.planName = planName
 	r.reap = reap
 	r.recursive = recursive
 	r.errorChannel = make(chan error, 100)
 
-	r.delete(r.expiredInstancesOf(r.freeServicePlansOf(r.servicesWithName(serviceName))))
+	r.delete(r.expiredInstancesOf(r.eligibleServicePlansFrom(r.eligibleServices())))
 
 	errorsFound := false
 	for err := range r.errorChannel {
@@ -63,20 +67,20 @@ func (r Reaper) Reap(serviceName string, expiryInterval time.Duration, reap, rec
 	return nil
 }
 
-func (r *Reaper) servicesWithName(serviceName string) <-chan cloudfoundry.Service {
+func (r *Reaper) eligibleServices() <-chan cloudfoundry.Service {
 	output := make(chan cloudfoundry.Service, 1)
 
 	go func() {
 		defer close(output)
 
-		services, err := r.cf.GetServices(serviceName)
+		services, err := r.cf.GetServices(r.serviceName)
 		if err != nil {
 			r.errorChannel <- err
 			return
 		}
 
 		if len(services) == 0 {
-			fmt.Fprintf(r.output, "No services of type '%s' found", serviceName)
+			fmt.Fprintf(r.output, "No services of type '%s' found", r.serviceName)
 			return
 		}
 
@@ -86,7 +90,7 @@ func (r *Reaper) servicesWithName(serviceName string) <-chan cloudfoundry.Servic
 	return output
 }
 
-func (r *Reaper) freeServicePlansOf(services <-chan cloudfoundry.Service) <-chan cloudfoundry.ServicePlan {
+func (r *Reaper) eligibleServicePlansFrom(services <-chan cloudfoundry.Service) <-chan cloudfoundry.ServicePlan {
 	output := make(chan cloudfoundry.ServicePlan, cloudfoundry.MaximumResultsPerPage)
 
 	go func() {
@@ -100,7 +104,7 @@ func (r *Reaper) freeServicePlansOf(services <-chan cloudfoundry.Service) <-chan
 			}
 
 			for _, servicePlan := range servicePlans {
-				if servicePlan.Entity.Free {
+				if servicePlan.Entity.Name == r.planName {
 					output <- servicePlan
 				}
 			}

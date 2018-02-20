@@ -30,13 +30,13 @@ import (
 )
 
 func main() {
-	username, password, skipSslValidation, reap, recursive, apiUrl, serviceName, expiryInterval := arg.Parse(os.Args, os.Stdout, os.Exit)
+	username, password, skipSslValidation, reap, recursive, apiUrl, serviceName, planName, expiryInterval := arg.Parse(os.Args, os.Stdout, os.Exit)
 
 	if !reap {
 		fmt.Printf("DRY RUN ONLY!\n")
 	}
 
-	fmt.Printf("Reaping instances of service %s older than %s in %s as %s...\n", serviceName, durafmt.Parse(expiryInterval), apiUrl, username)
+	fmt.Printf("Reaping instances of the '%s' plan of '%s' older than %s in %s as %s...\n", planName, serviceName, durafmt.Parse(expiryInterval), apiUrl, username)
 
 	transport := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: skipSslValidation},
@@ -52,7 +52,7 @@ func main() {
 	cf := cloudfoundry.NewClient(authClient, apiUrl, accessToken)
 	reaper := reaperpkg.NewReaper(cf, time.Now, os.Stdout)
 
-	err = reaper.Reap(serviceName, expiryInterval, reap, recursive)
+	err = reaper.Reap(serviceName, planName, expiryInterval, reap, recursive)
 	if err != nil {
 		fatalError("Failed", err)
 	}

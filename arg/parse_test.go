@@ -27,14 +27,17 @@ import (
 var _ = Describe("Parse", func() {
 
 	const (
-		testServiceName = "p-config-server"
-		testUrl         = "some.url"
+		testServiceName    = "p-config-server"
+		testPlanName       = "planName"
+		testUrl            = "some.url"
+		expirationInterval = "168"
 	)
 
 	var (
 		args              []string
 		username          string
 		password          string
+		planName          string
 		skipSslValidation bool
 		reap              bool
 		recursive         bool
@@ -49,12 +52,12 @@ var _ = Describe("Parse", func() {
 	JustBeforeEach(func() {
 		shouldExit = false
 		output = gbytes.NewBuffer()
-		username, password, skipSslValidation, reap, recursive, apiUrl, serviceName, expiryInterval = arg.Parse(args, output, func(code int) { shouldExit = true; exitCode = code })
+		username, password, skipSslValidation, reap, recursive, apiUrl, serviceName, planName, expiryInterval = arg.Parse(args, output, func(code int) { shouldExit = true; exitCode = code })
 	})
 
 	Context("with a full set of arguments", func() {
 		BeforeEach(func() {
-			args = []string{"command", "-u=user", "-p=password", "-skip-ssl-validation", "-reap", "-recursive", testUrl, testServiceName, "168"}
+			args = []string{"command", "-u=user", "-p=password", "-skip-ssl-validation", "-reap", "-recursive", testUrl, testServiceName, testPlanName, expirationInterval}
 		})
 
 		It("does not fail", func() {
@@ -68,14 +71,15 @@ var _ = Describe("Parse", func() {
 			Expect(reap).To(BeTrue())
 			Expect(recursive).To(BeTrue())
 			Expect(apiUrl).To(Equal("https://some.url"))
-			Expect(serviceName).To(Equal(testServiceName))
+			Expect(serviceName).To(Equal("p-config-server"))
+			Expect(planName).To(Equal("planName"))
 			Expect(expiryInterval).To(Equal(time.Duration(168) * time.Hour))
 		})
 	})
 
 	Context("with a minimal set of arguments", func() {
 		BeforeEach(func() {
-			args = []string{"command", "-u=user", "-p=password", testUrl, testServiceName, "168"}
+			args = []string{"command", "-u=user", "-p=password", testUrl, testServiceName, testPlanName, expirationInterval}
 		})
 
 		It("does not fail", func() {
@@ -92,7 +96,8 @@ var _ = Describe("Parse", func() {
 			Expect(username).To(Equal("user"))
 			Expect(password).To(Equal("password"))
 			Expect(apiUrl).To(Equal("https://some.url"))
-			Expect(serviceName).To(Equal(testServiceName))
+			Expect(serviceName).To(Equal("p-config-server"))
+			Expect(planName).To(Equal("planName"))
 			Expect(expiryInterval).To(Equal(time.Duration(168) * time.Hour))
 		})
 	})
@@ -100,7 +105,7 @@ var _ = Describe("Parse", func() {
 	Context("with an invalid number of arguments", func() {
 		BeforeEach(func() {
 			// Pass an additional argument so that parsing will not fail after the failure closure returns
-			args = []string{"command", "-u=user", "-p=password", testUrl, testServiceName, "168", "banana"}
+			args = []string{"command", "-u=user", "-p=password", testUrl, testServiceName, testPlanName, expirationInterval, "banana"}
 		})
 
 		It("fails with exit status code 0", func() {
@@ -130,7 +135,7 @@ var _ = Describe("Parse", func() {
 
 	Context("when an invalid api url is specified", func() {
 		BeforeEach(func() {
-			args = []string{"command", "-u=user", "-p=password", ":///:/", testServiceName, "168"}
+			args = []string{"command", "-u=user", "-p=password", ":///:/", testServiceName, testPlanName, expirationInterval}
 		})
 
 		It("fails with exit status code 1", func() {
@@ -145,7 +150,7 @@ var _ = Describe("Parse", func() {
 
 	Context("when an invalid expiry interval is specified", func() {
 		BeforeEach(func() {
-			args = []string{"command", "-u=user", "-p=password", testUrl, testServiceName, "-1"}
+			args = []string{"command", "-u=user", "-p=password", testUrl, testServiceName, testPlanName, "-1"}
 		})
 
 		It("fails with exit status code 0", func() {

@@ -34,6 +34,7 @@ const (
 	username    = "username"
 	password    = "password"
 	serviceName = "service-name"
+	planName    = "service-plan-name-0"
 	age         = "10"
 	accessToken = "access-token"
 )
@@ -84,6 +85,7 @@ var _ = Describe("Integration tests", func() {
 			"-reap",
 			fakeCfApiServer.URL,
 			serviceName,
+			planName,
 			age,
 		}
 	})
@@ -183,6 +185,16 @@ func getServicePlans(rw http.ResponseWriter, _ *http.Request) {
       },
       "entity": {
         "name": "service-plan-name-0",
+        "free": true
+      }
+    },
+    {
+      "metadata": {
+        "guid": "service-plan-guid-1",
+        "created_at": "service-plan-created-at-0"
+      },
+      "entity": {
+        "name": "service-plan-name-1",
         "free": true
       }
     }
