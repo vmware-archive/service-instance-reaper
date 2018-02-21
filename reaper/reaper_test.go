@@ -33,6 +33,8 @@ const (
 	testServiceGuid                           = "test-service-guid"
 	testFreeServicePlanName                   = "test-free-service-name"
 	testFreeServicePlanGuid                   = "test-free-service-guid"
+	testSponsoredFreeServicePlanName          = "test-sponsored-free-service-name"
+	testSponsoredFreeServicePlanGuid          = "test-sponsored-free-service-guid"
 	testPaidServicePlanName                   = "test-paid-service-name"
 	testPaidServicePlanGuid                   = "test-paid-service-guid"
 	testExpiredFreePlanServiceInstanceGuid1   = "test-expired-free-plan-service-instance-guid-1"
@@ -68,7 +70,7 @@ var _ = Describe("Reaper", func() {
 
 	JustBeforeEach(func() {
 		reaper = reaperpkg.NewReaper(fakeCfClient, frozenTime, reaperOutput)
-		reaperError = reaper.Reap(testServiceName, expireAfter10Hours, reap, recursive)
+		reaperError = reaper.Reap(testServiceName, testFreeServicePlanName, expireAfter10Hours, reap, recursive)
 	})
 
 	Describe("fetching services", func() {
@@ -125,7 +127,7 @@ var _ = Describe("Reaper", func() {
 	})
 
 	Describe("fetching service plan instances", func() {
-		It("fetches a list of instances of any free service plans", func() {
+		It("fetches a list of instances of the given plan", func() {
 			Expect(reaperError).NotTo(HaveOccurred())
 			Expect(fakeCfClient.GetServicePlanInstancesCallCount()).To(Equal(1), "Unexpected number of calls to GetServicePlanInstances")
 			servicePlanGuid := fakeCfClient.GetServicePlanInstancesArgsForCall(0)
@@ -209,7 +211,7 @@ var _ = Describe("Reaper", func() {
 					fakeCfClient.DeleteServiceInstanceReturns(testError)
 				})
 
-				It("logs the error and failss", func() {
+				It("logs the error and fails", func() {
 					const errorMessage = "unable to delete service instance: %s %s \\(%s\\)\n"
 					expectErrorsMatching(reaperError, reaperOutput,
 						fmt.Sprintf(errorMessage, testExpiredFreePlanServiceInstanceName1, testExpiredFreePlanServiceInstanceGuid1, testError),
@@ -302,6 +304,13 @@ func successfulGetServicePlansResponse() servicePlanResult {
 					Name string
 					Free bool
 				}{testFreeServicePlanName, true},
+			},
+			{
+				cloudfoundry.Metadata{Guid: testSponsoredFreeServicePlanGuid},
+				struct {
+					Name string
+					Free bool
+				}{testSponsoredFreeServicePlanName, true},
 			},
 		},
 		err: nil,

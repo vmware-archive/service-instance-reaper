@@ -25,7 +25,7 @@ import (
 	"time"
 )
 
-func Parse(args []string, output io.Writer, exit func(int)) (username string, password string, skipSslValidation bool, reap, recursive bool, apiUrl string, serviceName string, expiryInterval time.Duration) {
+func Parse(args []string, output io.Writer, exit func(int)) (username string, password string, skipSslValidation bool, reap, recursive bool, apiUrl string, serviceName string, planName string, expiryInterval time.Duration) {
 	commandLine := flag.NewFlagSet(args[0], flag.ExitOnError)
 	commandLine.SetOutput(output)
 	commandLine.StringVar(&username, "u", "", "username")
@@ -36,7 +36,7 @@ func Parse(args []string, output io.Writer, exit func(int)) (username string, pa
 	commandLine.Parse(args[1:])
 
 	positionalArgs := commandLine.Args()
-	if len(positionalArgs) != 3 || positionalArgs[0] == "help" {
+	if len(positionalArgs) != 4 || positionalArgs[0] == "help" {
 		printUsage(output, commandLine)
 		exit(0)
 		return
@@ -53,10 +53,11 @@ func Parse(args []string, output io.Writer, exit func(int)) (username string, pa
 	apiUrl = urlArg.String()
 
 	serviceName = positionalArgs[1]
+	planName = positionalArgs[2]
 
-	expiryIntervalHours, err := strconv.ParseFloat(positionalArgs[2], 32)
+	expiryIntervalHours, err := strconv.ParseFloat(positionalArgs[3], 32)
 	if err != nil || expiryIntervalHours < 0 {
-		fmt.Fprintf(output, "Invalid expiry interval: %s\n", positionalArgs[2])
+		fmt.Fprintf(output, "Invalid expiry interval: %s\n", positionalArgs[3])
 		printUsage(output, commandLine)
 		exit(1)
 		return
@@ -70,7 +71,7 @@ func printUsage(output io.Writer, flags *flag.FlagSet) {
 	fmt.Fprintln(output, `Delete instances of the given service older than the given age
 		
 Usage:
-  service-instance-reaper [-reap] [-recursive] -u username -p password [-skip-ssl-validation] API_URL SERVICE_NAME AGE_HOURS
+  service-instance-reaper [-reap] [-recursive] -u username -p password [-skip-ssl-validation] API_URL SERVICE_NAME PLAN_NAME AGE_HOURS
 
 Flags (which must be specified BEFORE non-flag arguments):`)
 	flags.PrintDefaults()
