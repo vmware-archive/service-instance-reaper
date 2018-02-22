@@ -50,7 +50,7 @@ func main() {
 
 	authClient := httpclient.NewAuthenticatedClient(client)
 	cf := cloudfoundry.NewClient(authClient, apiUrl, accessToken)
-	reaper := reaperpkg.NewReaper(cf, time.Now, os.Stdout)
+	reaper := reaperpkg.NewReaper(cf, func() time.Time { return time.Now().UTC() }, os.Stdout)
 
 	err = reaper.Reap(serviceName, planName, expiryInterval, reap, recursive)
 	if err != nil {
