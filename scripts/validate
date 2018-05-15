@@ -18,17 +18,18 @@ validate_log() {
   count=0
 
   service_instance_ids=$(grep --only-matching '[[:xdigit:]-]\{36\}' < "$log_path")
-  number_of_service_instances=$(wc -w <<< ${service_instance_ids})
+  number_of_service_instances=$(wc -w <<< "${service_instance_ids}")
 
-  exec 3>&1
   (
-    echo "SERVICE INSTANCE;SERVICE INSTANCE ID;ORG;SPACE;SERVICE;SERVICE PLAN"
+    echo "SERVICE INSTANCE;SERVICE INSTANCE ID;ORG;SPACE;SERVICE;SERVICE PLAN;AGE IN DAYS"
 
     for service_instance_id in ${service_instance_ids}; do
-      echo -ne "Collecting data: $(bc -l <<< "scale = 2; $count / $number_of_service_instances * 100")%\r" >&3
+      echo -ne "Collecting data: $(bc -l <<< "scale = 2; $count / $number_of_service_instances * 100")%\\r" >&2
 
       service_instance=$(cf curl "/v2/service_instances/$service_instance_id")
       service_instance_name=$(jq -r '.entity.name' <<< "$service_instance")
+      service_instance_creation_time=$(jq -r '.metadata.created_at' <<< "$service_instance")
+      age_in_days=$(( ($(date -j +%s) - $(date -jf '%Y-%m-%dT%H:%M:%SZ' "$service_instance_creation_time" +%s)) / 24 / 3600))
       space_url=$(jq -r '.entity.space_url' <<< "$service_instance")
       space=$(cf curl "$space_url")
       space_name=$(jq -r '.entity.name' <<< "$space")
@@ -42,7 +43,7 @@ validate_log() {
       service_plan=$(cf curl "$service_plan_url")
       service_plan_name=$(jq -r '.entity.name' <<< "$service_plan")
 
-      echo "$service_instance_name;$service_instance_id;$org_name;$space_name;$service_name;$service_plan_name"
+      echo "$service_instance_name;$service_instance_id;$org_name;$space_name;$service_name;$service_plan_name;$age_in_days"
 
       count=$((count + 1))
     done
