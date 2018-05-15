@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+validate_environment() {
+  which cf > /dev/null || { echo "cf cli is required - please install it"; exit 1; }
+  which jq > /dev/null || { echo "jq is required - please install it"; exit 1; }
+  which bc > /dev/null || { echo "bc is required - please install it"; exit 1; }
+}
+
+usage() {
+  echo "Usage: validate /path/to/reaper.log"
+}
+
+validate_log() {
+  local log_path service_instance_ids count number_of_service_instances
+  log_path=$1
+  count=0
+
+  service_instance_ids=$(grep --only-matching '[[:xdigit:]-]\{36\}' < "$log_path")
+  number_of_service_instances=$(wc -w <<< ${service_instance_ids})
+
+  exec 3>&1
+  (
+    echo "SERVICE INSTANCE;SERVICE INSTANCE ID;ORG;SPACE;SERVICE;SERVICE PLAN"
+
+    for service_instance_id in ${service_instance_ids}; do
+      echo -ne "Collecting data: $(bc -l <<< "scale = 2; $count / $number_of_service_instances * 100")%\r" >&3
+
+      service_instance=$(cf curl "/v2/service_instances/$service_instance_id")
+      service_instance_name=$(jq -r '.entity.name' <<< "$service_instance")
+      space_url=$(jq -r '.entity.space_url' <<< "$service_instance")
+      space=$(cf curl "$space_url")
+      space_name=$(jq -r '.entity.name' <<< "$space")
+      org_url=$(jq -r '.entity.organization_url' <<< "$space")
+      org=$(cf curl "$org_url")
+      org_name=$(jq -r '.entity.name' <<< "$org")
+      service_url=$(jq -r '.entity.service_url' <<< "$service_instance")
+      service=$(cf curl "$service_url")
+      service_name=$(jq -r '.entity.label' <<< "$service")
+      service_plan_url=$(jq -r '.entity.service_plan_url' <<< "$service_instance")
+      service_plan=$(cf curl "$service_plan_url")
+      service_plan_name=$(jq -r '.entity.name' <<< "$service_plan")
+
+      echo "$service_instance_name;$service_instance_id;$org_name;$space_name;$service_name;$service_plan_name"
+
+      count=$((count + 1))
+    done
+  ) | column -ts\;
+}
+
+main() {
+  validate_environment
+
+  local log_path
+  log_path=$1
+
+  if [ -f "$log_path" ]; then
+    validate_log "$log_path"
+  else
+    usage
+  fi
+}
+
+main "$@"
