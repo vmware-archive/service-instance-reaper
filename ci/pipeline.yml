@@ -29,11 +29,11 @@ resources:
 - name: service-instance-reaper
   type: git
   source:
-    uri: {{scs-github-url-service-instance-reaper}}
+    uri: ((scs-github-url-service-instance-reaper))
     branch: master
 
 - name: alert
   type: slack-notification
   source:
     # Default channel is #scs-firehose
-    url: {{scs-slack-webhook}}
+    url: ((scs-slack-webhook))
