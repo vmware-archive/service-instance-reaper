@@ -11,7 +11,7 @@ jobs:
   plan:
   - get: service-instance-reaper
     trigger: true
-  - aggregate:
+  - in_parallel:
     - task: build
       file: service-instance-reaper/ci/tasks/build.yml
     - task: test
