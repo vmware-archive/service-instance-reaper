@@ -1,0 +1,15 @@
+github.com/hako/durafmt v0.0.0-20180108013639-5af426b79547 h1:v9O4DdaozGXrx0002OoHpLXvaxTDH72iWb+7hOTt6Ng=
+github.com/hako/durafmt v0.0.0-20180108013639-5af426b79547/go.mod h1:5Scbynm8dF1XAPwIwkGPqzkM/shndPm79Jd1003hTjE=
+github.com/onsi/ginkgo v1.4.1-0.20171031171758-652e15c9a27e h1:xcE7saPM90qj7qLeaHATYmj9jJHVnel6SJIYvd5bQF8=
+github.com/onsi/ginkgo v1.4.1-0.20171031171758-652e15c9a27e/go.mod h1:lLunBs/Ym6LB5Z9jYTR76FiuTmxDTDusOGeTQH+WWjE=
+github.com/onsi/gomega v1.3.1-0.20180130223036-4fc17627b66f h1:4537JJ6nM5rxMXCEGG9BDbIsJg9Vf6aRfgqChPeaGaM=
+github.com/onsi/gomega v1.3.1-0.20180130223036-4fc17627b66f/go.mod h1:C1qb7wdrVGGVU+Z6iS04AVkA3Q65CEZX59MT0QO5uiA=
+github.com/pivotal-cf/spring-cloud-services-cli-plugin v1.0.1-0.20180115120142-3e9afe2b85cf/go.mod h1:ijvhkszT0xWTL/WE9OGN9O7zTUo9zdnyxktuVeQ2swY=
+golang.org/x/net v0.0.0-20171107184841-a337091b0525 h1:KtEW9ll78DlakrUaoIv2p6oozE+wN/abax8yB4Y8+Fs=
+golang.org/x/net v0.0.0-20171107184841-a337091b0525/go.mod h1:mL1N/T3taQHkDXs73rZJwtUhF3w3ftmwwsq0BUmARs4=
+golang.org/x/sys v0.0.0-20171017063910-8dbc5d05d6ed h1:7TjTAJENziDn0SiwaaVypM+TFSq4rk6LJOuy3GUKMhg=
+golang.org/x/sys v0.0.0-20171017063910-8dbc5d05d6ed/go.mod h1:STP8DvDyc/dI5b8T5hshtkjS+E42TnysNCUPdjciGhY=
+golang.org/x/text v0.1.1-0.20171102192421-88f656faf3f3 h1:OxMYHd6bm+jH+TI7NBCb/CaYk6pMJnBC8GIzIi68Hk4=
+golang.org/x/text v0.1.1-0.20171102192421-88f656faf3f3/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
+gopkg.in/yaml.v2 v2.0.0-20170812160011-eb3733d160e7 h1:+t9dhfO+GNOIGJof6kPOAenx7YgrZMTdRPV+EsnPabk=
+gopkg.in/yaml.v2 v2.0.0-20170812160011-eb3733d160e7/go.mod h1:JAlM8MvJe8wmxCU4Bli9HhUf9+ttbYbLASfIpnQbh74=
